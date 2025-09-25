@@ -1,3 +1,4 @@
+// trigger deploy
 export default async function handler(req, res) {
   try {
     const { text } = req.method === "POST" ? req.body : { text: req.query.text };
