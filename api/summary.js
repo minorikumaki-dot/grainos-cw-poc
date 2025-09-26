@@ -1,27 +1,25 @@
+import OpenAI from "openai";
+
 export default async function handler(req, res) {
   try {
-    const { text } = req.method === "POST" ? req.body : { text: req.query.text };
-    if (!text) return res.status(400).json({ error: "text is required" });
+    const { text = "" } = req.method === "POST" ? req.body : req.query;
+    if (!text) return res.status(400).json({ ok: false, error: "text is required" });
 
-    const apiKey = process.env.OPENAI_API_KEY;
-    const r = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: "次を3行で日本語要約。" },
-          { role: "user", content: text }
-        ]
-      })
-    }).then(r => r.json());
+    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const prompt = `以下を3点で要約し、最後に「決定事項」「ToDo(担当/期限)」を出力:
+---
+${text}
+---`;
 
-    const summary = r.choices?.[0]?.message?.content?.trim() || "(no result)";
-    res.json({ summary });
+    const completion = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.2,
+    });
+
+    const summary = completion.choices?.[0]?.message?.content ?? "";
+    return res.status(200).json({ ok: true, summary });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ ok: false, error: e.message });
   }
 }
