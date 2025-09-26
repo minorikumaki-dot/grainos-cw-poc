@@ -1,8 +1,128 @@
 <!doctype html>
-<html lang="ja"><meta charset="utf-8" />
-<title>GRAINOS API</title>
-<h1>GRAINOS API</h1>
-<ul>
-  <li><a href="/api/summary?text=%E3%83%86%E3%82%B9%E3%83%88">/api/summary?text=テスト</a></li>
-  <li><a href="/api/confirm-ui?subject=%E7%A7%81&deadline=9%2F30&gist=%E3%83%89%E3%83%A9%E3%83%95%E3%83%88%E6%89%BF%E8%AA%8D">/api/confirm-ui</a></li>
-</ul>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GRAINOS | 合意UIリンク作成</title>
+  <style>
+    :root { --bg:#0b0c10; --card:#151821; --text:#eaf0ff; --muted:#9aa4b2; --accent:#7aa2ff; --ok:#3ecf8e; }
+    *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;color:var(--text);background:linear-gradient(180deg,#0b0c10,#121520 70%);}
+    .wrap{max-width:720px;margin:6vh auto;padding:16px}
+    .card{background:var(--card);border:1px solid #222838;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+    .hd{padding:20px 24px;border-bottom:1px solid #202637}
+    h1{font-size:18px;margin:0}
+    .bd{padding:22px 24px;display:grid;gap:16px}
+    label{display:block;font-size:12px;color:var(--muted);margin:6px 0}
+    input,textarea{width:100%;padding:12px 14px;border-radius:12px;border:1px solid #2a3246;background:#0f121a;color:var(--text);outline:none}
+    input:focus,textarea:focus{border-color:#394569;box-shadow:0 0 0 3px #39456955}
+    .row{display:grid;gap:14px;grid-template-columns:1fr 180px}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+    button,.btn{appearance:none;border:0;border-radius:12px;padding:12px 16px;cursor:pointer;font-weight:600}
+    .gen{background:var(--accent);color:#0b0c10}
+    .copy{background:#26314a;color:var(--text)}
+    .open{background:var(--ok);color:#05321e;text-decoration:none;display:inline-block}
+    .out{background:#0f121a;border:1px dashed #2b3350;border-radius:12px;padding:12px 14px;color:#b7c2d4;word-break:break-all}
+    .muted{color:var(--muted);font-size:12px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="hd"><h1>合意UIリンク作成</h1></div>
+      <div class="bd">
+        <div>
+          <label>主語</label>
+          <input id="subject" placeholder="例）私 / 企画チーム など" autocomplete="off">
+        </div>
+        <div class="row">
+          <div>
+            <label>要旨</label>
+            <input id="gist" placeholder="例）ドラフトを承認" autocomplete="off">
+          </div>
+          <div>
+            <label>期限</label>
+            <input id="deadline" type="date">
+            <div class="muted">未入力なら「—」表示</div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="gen" id="make">リンクを生成</button>
+          <button class="copy" id="copy" disabled>コピー</button>
+          <a class="open" id="open" href="#" target="_blank" rel="noopener" disabled>開く</a>
+        </div>
+
+        <div>
+          <label>生成されたURL</label>
+          <div id="url" class="out">（ここにURLが表示されます）</div>
+          <div class="muted">🔗 このURLをChatworkなどに貼れば、合意確認のUIが開きます。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const el = id => document.getElementById(id);
+  const subject  = el('subject');
+  const gist     = el('gist');
+  const deadline = el('deadline');
+  const out      = el('url');
+  const makeBtn  = el('make');
+  const copyBtn  = el('copy');
+  const openBtn  = el('open');
+
+  // 期限の初期値（今日+7日）
+  (() => {
+    const d = new Date(); d.setDate(d.getDate()+7);
+    deadline.value = d.toISOString().slice(0,10);
+  })();
+
+  function buildURL() {
+    const base = location.origin + '/api/confirm-ui';
+    const q = new URLSearchParams();
+    if (subject.value.trim())  q.set('subject',  subject.value.trim());
+    if (gist.value.trim())     q.set('gist',     gist.value.trim());
+    if (deadline.value.trim()) q.set('deadline', deadline.value.trim().replaceAll('/','%2F'));
+    const url = base + (q.toString() ? ('?' + q.toString()) : '');
+    return url;
+  }
+
+  function setURL(u){
+    out.textContent = u;
+    copyBtn.disabled = !u;
+    openBtn.href = u || '#';
+    openBtn.style.pointerEvents = u ? 'auto' : 'none';
+    openBtn.style.opacity = u ? '1' : '.5';
+  }
+
+  makeBtn.addEventListener('click', (e)=>{
+    e.preventDefault();
+    const u = buildURL();
+    setURL(u);
+    // 入力保持（URLハッシュに保存）
+    location.hash = encodeURIComponent(JSON.stringify({
+      subject:subject.value, gist:gist.value, deadline:deadline.value
+    }));
+  });
+
+  copyBtn.addEventListener('click', async ()=>{
+    const u = out.textContent.trim();
+    if(!u) return;
+    await navigator.clipboard.writeText(u);
+    copyBtn.textContent = 'コピーしました';
+    setTimeout(()=> copyBtn.textContent = 'コピー', 1400);
+  });
+
+  // ハッシュから復元（再訪時に便利）
+  try {
+    if(location.hash.length>1){
+      const s = JSON.parse(decodeURIComponent(location.hash.slice(1)));
+      if(s.subject)  subject.value  = s.subject;
+      if(s.gist)     gist.value     = s.gist;
+      if(s.deadline) deadline.value = s.deadline;
+      setURL(buildURL());
+    }
+  } catch(_) {}
+</script>
+</body>
+</html>
